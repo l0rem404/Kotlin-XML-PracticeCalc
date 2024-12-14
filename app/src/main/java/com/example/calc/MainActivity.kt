@@ -69,6 +69,7 @@ class MainActivity : AppCompatActivity() {
                 txtInput.append(value)
             }
             canAddOperation = true
+            updatePreviewResult()
         }
     }
 
@@ -77,6 +78,7 @@ class MainActivity : AppCompatActivity() {
             txtInput.append(view.text.toString())
             canAddOperation = false
             canAddDecimal = true
+            updatePreviewResult()
         }
     }
 
@@ -104,7 +106,8 @@ class MainActivity : AppCompatActivity() {
                 .replace("%", "/100")
 
             val result = ExpressionBuilder(expression).build().evaluate()
-            txtResult.text = result.toString()
+            txtInput.text = result.toString()  // Replace input with result
+            txtResult.text = ""
         } catch (e: Exception) {
             txtResult.text = "Error"
         }
@@ -144,6 +147,26 @@ class MainActivity : AppCompatActivity() {
             newNumber
         } else {
             input.substring(0, lastNumberIndex + 1) + newNumber
+        }
+    }
+
+    private fun updatePreviewResult() {
+        val input = txtInput.text.toString()
+
+        if (input.any { it in "+-×÷" }) {
+            try {
+                val expression = input
+                    .replace("÷", "/")
+                    .replace("×", "*")
+                    .replace("%", "/100")
+
+                val result = ExpressionBuilder(expression).build().evaluate()
+                txtResult.text = result.toString()
+            } catch (e: Exception) {
+                txtResult.text = ""
+            }
+        } else {
+            txtResult.text = ""
         }
     }
 
