@@ -100,7 +100,7 @@ class MainActivity : AppCompatActivity() {
         try {
             val expression = txtInput.text.toString()
                 .replace("÷", "/")
-                .replace("X", "*")
+                .replace("×", "*")
                 .replace("%", "/100")
 
             val result = ExpressionBuilder(expression).build().evaluate()
