@@ -1,20 +1,37 @@
 package com.example.calc
 
+import android.content.Intent
+import android.content.SharedPreferences
+import android.media.Image
 import android.os.Bundle
+import android.util.Log
 import android.view.View
 import android.widget.Button
 import android.widget.ImageButton
 import android.widget.TextView
+import android.widget.Toast
 import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import net.objecthunter.exp4j.ExpressionBuilder
+import androidx.appcompat.app.AppCompatActivity
+import com.example.calc.Hist.HistoryActivity
+import com.example.calc.api.AuthUtils
+import com.example.calc.api.CalcReq
+import com.example.calc.api.CalcResponse
+import com.example.calc.api.RetrofitClient
+import com.google.api.ResourceDescriptor.History
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+
 
 class MainActivity : AppCompatActivity() {
 
     private lateinit var txtInput: TextView
     private lateinit var txtResult: TextView
+    private lateinit var sharedPreferences: SharedPreferences
 
     private var canAddOperation = false
     private var canAddDecimal = true
@@ -29,7 +46,15 @@ class MainActivity : AppCompatActivity() {
             insets
         }
 
+        sharedPreferences = getSharedPreferences("AuthPrefs", MODE_PRIVATE)
+
+        if (!loggedIn()) {
+            navigateToLogin()
+            return
+        }
+
         txtInput = findViewById(R.id.txtInput)
+
         txtResult = findViewById(R.id.txtRes)
 
 
@@ -55,10 +80,33 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.btnEq).setOnClickListener { equalsAction() }
         findViewById<Button>(R.id.btnParenthesis).setOnClickListener { parenthesisAction() }
         findViewById<Button>(R.id.btnPosNeg).setOnClickListener { toggleSignAction() }
+
+        findViewById<ImageButton>(R.id.btnLogout).setOnClickListener{
+            logOut()
+            finish()
+        }
+
+        findViewById<ImageButton>(R.id.btnHist).setOnClickListener {
+            val intent = Intent(this, HistoryActivity::class.java)
+            startActivity(intent)
+        }
     }
+
+
+    private fun loggedIn(): Boolean {
+        return sharedPreferences.getBoolean("isLoggedIn", false)
+    }
+
+    private fun navigateToLogin() {
+        val intent = Intent(this, LoginActivity::class.java)
+        startActivity(intent)
+        finish()
+    }
+
 
     private fun numberAction(view: View) {
         if (view is Button) {
+
             val value = view.text.toString()
             if (value == ".") {
                 if (canAddDecimal) {
@@ -75,6 +123,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun operationAction(view: View) {
         if (view is Button && canAddOperation) {
+
             txtInput.append(view.text.toString())
             canAddOperation = false
             canAddDecimal = true
@@ -106,8 +155,10 @@ class MainActivity : AppCompatActivity() {
                 .replace("%", "/100")
 
             val result = ExpressionBuilder(expression).build().evaluate()
-            txtInput.text = result.toString()  // Replace input with result
+            txtInput.text = result.toString()
             txtResult.text = ""
+            saveHistory(expression, result.toString())
+
         } catch (e: Exception) {
             txtResult.text = "Error"
         }
@@ -167,6 +218,47 @@ class MainActivity : AppCompatActivity() {
             }
         } else {
             txtResult.text = ""
+        }
+    }
+
+    private fun saveHistory(expression: String, result: String) {
+        val request = CalcReq(expression, result)
+
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val response = RetrofitClient.instance.saveHistory(request)
+
+                withContext(Dispatchers.Main) {
+                    if (response.message == "History saved successfully") {
+                        Log.d("History", "Saved: ${response.data}")
+                    } else {
+                        Log.e("History", "Failed to save history: ${response.message}")
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e("History", "Error: ${e.localizedMessage}")
+            }
+        }
+    }
+
+    private fun logOut() {
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val logoutResponse = RetrofitClient.instance.logout()
+
+                withContext(Dispatchers.Main) {
+                    Toast.makeText(this@MainActivity, logoutResponse.message, Toast.LENGTH_SHORT).show()
+
+                    AuthUtils.clearToken(MyApp.context)
+
+                    navigateToLogin()
+                }
+            } catch (e: Exception) {
+                withContext(Dispatchers.Main) {
+                    Log.e("Logout", "Error: ${e.localizedMessage}")
+                    Toast.makeText(this@MainActivity, "An error occurred during logout", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
     }
 
